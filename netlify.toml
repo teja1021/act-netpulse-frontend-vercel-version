@@ -1,5 +1,5 @@
 [build]
-  command = "npm install && npm run build"
+  command = "npm ci && npx ng build --configuration production"
   publish = "dist/netpulse/browser"
 
 [build.environment]
