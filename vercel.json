@@ -1,25 +1,7 @@
 {
-    "version": 2,
-    "builds": [
-        {
-            "src": "package.json",
-            "use": "@vercel/static-build",
-            "config": {
-                "distDir": "dist/netpulse/browser"
-            }
-        }
-    ],
-    "routes": [
-        {
-            "src": "/api/(.*)",
-            "dest": "https://act-netpulse-backend.onrender.com/api/$1"
-        },
-        {
-            "handle": "filesystem"
-        },
-        {
-            "src": "/.*",
-            "dest": "/index.html"
-        }
-    ]
+  "version": 2,
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "https://act-netpulse-backend.onrender.com/api/$1" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
 }
