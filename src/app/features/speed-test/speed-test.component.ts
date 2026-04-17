@@ -124,6 +124,41 @@ import { LogService } from '../../core/services/log.service';
         <span class="jitter-val">{{ st().server ? st().server!.city + ', ' + st().server!.country + ' (M-Lab)' : 'Localhost' }}</span>
       </div>
     }
+
+    <!-- ═══════════════════════════════════════════════
+         SPEED SUMMARY CARD (only after test completes)
+         ═══════════════════════════════════════════════ -->
+    @if (st().phase === 'done' && st().download > 0) {
+      <div class="card speed-summary-card">
+
+        <div class="ssc-head">
+          <span class="ssc-icon">⚡</span>
+          <h3>Speed Summary</h3>
+        </div>
+
+        <div class="info-title">
+          <span class="info-icon">🌐</span>
+          <span>How is my internet connection?</span>
+        </div>
+
+        <div class="speed-result-box" [class]="speedSummaryClass()">
+          <div class="srb-content">
+            <div class="srb-title">{{ speedGrade().title }}</div>
+          </div>
+          <div class="srb-mbps">{{ st().download }}<span>Mbps</span></div>
+        </div>
+
+        <div class="what-title">
+          <span class="what-icon">?</span>
+          What can I do with this connection?
+        </div>
+        <div class="what-box">
+          <div class="speed-detail-text" [innerHTML]="speedGrade().desc"></div>
+        </div>
+
+      </div>
+    }
+
   </div>
 
   <!-- RIGHT COLUMN -->
@@ -190,6 +225,9 @@ import { LogService } from '../../core/services/log.service';
       </div>
     </div>
 
+    <div>
+
+  </div>
     <!-- Performance Rating Card -->
     <div class="card perf-card">
       <div class="pc-head">
@@ -244,168 +282,13 @@ import { LogService } from '../../core/services/log.service';
       </div>
       <div>
         <div class="isp-name">{{ user()?.plan?.isp }} — {{ user()?.plan?.city }}</div>
-        <div class="isp-sub">{{ user()?.plan?.name }} · UDP/TCP</div>
+        <div class="isp-sub">{{ user()?.plan?.name }}</div>
       </div>
     </div>
   </div>
 </div>
 }
   `,
-  styles: [`
-    .hero-banner { background:linear-gradient(135deg,var(--navy) 0%,var(--navy3) 60%,#2a1040 100%); padding:36px 48px 40px; }
-    .hero-banner h1 { font-family:var(--font-d); font-size:2.3rem; font-weight:800; color:#fff; margin-bottom:8px; }
-    .hero-banner h1 span { color:var(--red); }
-    .hero-banner p { font-size:.88rem; color:rgba(255,255,255,.5); }
-
-    .st-layout { display:grid; grid-template-columns:1fr 370px; gap:20px; padding:24px 32px; max-width:1400px; margin:0 auto; }
-
-    /* LEFT */
-    .st-left { padding:24px 24px 20px; display:flex; flex-direction:column; align-items:center; gap:12px; }
-    .meter-title { font-size:.7rem; font-weight:700; letter-spacing:.15em; color:var(--text2); }
-
-    /* Canvas */
-    .canvas-wrap { position:relative; width:320px; height:195px; }
-    .canvas-wrap canvas { position:absolute; top:0; left:0; }
-    .speed-center { position:absolute; bottom:18px; left:50%; transform:translateX(-50%); text-align:center; pointer-events:none; }
-    .speed-big  { font-family:var(--font-d); font-size:3rem; font-weight:800; color:var(--text); line-height:1; }
-    .speed-unit { font-size:.78rem; font-weight:600; color:var(--text2); letter-spacing:.06em; }
-
-    /* Metrics */
-    .metric-row { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; width:100%; }
-    .metric-box { padding:14px 10px; background:var(--bg); border-radius:var(--r-lg); border:1px solid var(--border); text-align:center; }
-    .mb-label { font-size:.6rem; font-weight:700; letter-spacing:.1em; color:var(--text2); margin-bottom:7px; text-transform:uppercase; }
-    .mb-line  { width:24px; height:3px; border-radius:2px; margin:0 auto 7px; }
-    .dl-line  { background:var(--green); }
-    .ul-line  { background:var(--red); }
-    .lat-line { background:var(--orange); }
-    .mb-val   { font-family:var(--font-d); font-size:1.4rem; font-weight:700; min-height:1.4rem; line-height:1; }
-    .dl-val   { color:var(--green); }
-    .ul-val   { color:var(--red); }
-    .lat-val  { color:var(--orange); }
-    .mb-unit  { font-size:.7rem; color:var(--text2); margin-top:2px; }
-
-    /* Progress */
-    .prog-wrap { width:100%; }
-    .prog-bar  { height:4px; background:var(--bg); border-radius:2px; overflow:hidden; }
-    .prog-fill { height:100%; background:linear-gradient(90deg,var(--red),#ff5555); border-radius:2px; transition:width .25s ease; }
-
-    /* Start button */
-    .start-btn {
-      width:100%; padding:18px; background:var(--red); color:#fff;
-      border:none; border-radius:var(--r-lg); font-size:1rem; font-weight:700;
-      letter-spacing:.06em; cursor:pointer; transition:all .2s;
-      display:flex; align-items:center; justify-content:center; gap:10px;
-      box-shadow:0 4px 16px rgba(226,0,26,.35);
-    }
-    .start-btn:hover:not(:disabled) { background:var(--red-dark); transform:translateY(-1px); box-shadow:0 6px 24px rgba(226,0,26,.4); }
-    .start-btn:disabled { opacity:.6; cursor:not-allowed; transform:none; }
-    .spin-white { width:18px; height:18px; border-radius:50%; border:2.5px solid rgba(255,255,255,.3); border-top-color:#fff; animation:spin .7s linear infinite; }
-    @keyframes spin { to { transform:rotate(360deg); } }
-
-    /* Steps */
-    .steps-list { display:flex; flex-direction:column; gap:8px; width:100%; }
-    .step-item { display:flex; align-items:center; gap:12px; padding:10px 14px; background:var(--bg); border-radius:var(--r-md); font-size:.84rem; color:var(--text2); border:1.5px solid var(--border); transition:all .25s; }
-    .step-item.step-active { background:#fff5f5; border-color:rgba(226,0,26,.3); color:var(--text); }
-    .step-item.step-done   { background:#f0fdf4; border-color:rgba(22,163,74,.2); color:var(--green); }
-    .step-num { width:26px; height:26px; border-radius:50%; background:var(--border); color:var(--text2); display:flex; align-items:center; justify-content:center; font-size:.78rem; font-weight:700; flex-shrink:0; transition:all .25s; }
-    .step-item.step-active .step-num { background:var(--red); color:#fff; }
-    .step-item.step-done   .step-num { background:var(--green); color:#fff; }
-
-    /* Jitter */
-    .jitter-row { display:flex; align-items:center; gap:8px; font-size:.78rem; color:var(--text2); }
-    .jitter-val { font-weight:600; color:var(--text); }
-    .jitter-sep { color:var(--border); }
-
-    /* RIGHT */
-    .st-right { display:flex; flex-direction:column; gap:16px; }
-
-    /* Plan card */
-    .plan-card { padding:20px; }
-    .pc-head   { display:flex; align-items:center; gap:8px; margin-bottom:16px; }
-    .pc-head h3 { font-family:var(--font-d); font-size:1.1rem; font-weight:700; }
-    .pc-ic { font-size:1.1rem; }
-
-    .plan-box { border:1.5px solid var(--red); border-radius:var(--r-lg); padding:15px; margin-bottom:14px; }
-    .pb-label { font-size:.6rem; font-weight:700; letter-spacing:.1em; color:var(--text2); margin-bottom:6px; text-transform:uppercase; }
-    .pb-speed strong { font-family:var(--font-d); font-size:2.2rem; font-weight:800; color:var(--text); }
-    .pb-mbps  { font-size:.9rem; color:var(--text2); margin-left:5px; }
-    .pb-speed { margin-bottom:12px; }
-
-    .plan-bar-row { display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:.78rem; color:var(--text2); }
-    .plan-bar-row:last-child { margin-bottom:0; }
-    .pbr-label { width:60px; flex-shrink:0; }
-    .pbr-track { flex:1; height:4px; background:var(--border); border-radius:2px; overflow:hidden; }
-    .pbr-fill  { height:100%; border-radius:2px; transition:width .6s ease; }
-    .dl-fill   { background:var(--green); }
-    .ul-fill   { background:var(--red); }
-    .pbr-pct   { font-size:.75rem; font-weight:600; color:var(--text2); min-width:34px; text-align:right; }
-
-    /* Circles */
-    .circle-row { display:flex; justify-content:space-around; }
-    .circ-item  { display:flex; flex-direction:column; align-items:center; gap:5px; }
-    .circ-svg-wrap { position:relative; display:flex; align-items:center; justify-content:center; }
-    .circ-pct   { position:absolute; font-family:var(--font-d); font-size:1.05rem; font-weight:700; color:var(--text); }
-    .circ-lbl   { font-size:.73rem; color:var(--text2); }
-
-    /* Perf card */
-    .perf-card { padding:20px; }
-    .perf-result { display:flex; align-items:center; gap:12px; padding:14px; border-radius:var(--r-lg); margin-bottom:14px; }
-    .pr-best    { background:rgba(22,163,74,.08);  border:1px solid rgba(22,163,74,.2); }
-    .pr-good    { background:rgba(30,64,175,.07);  border:1px solid rgba(30,64,175,.18); }
-    .pr-average { background:rgba(217,119,6,.08);  border:1px solid rgba(217,119,6,.2); }
-    .pr-poor    { background:rgba(226,0,26,.06);   border:1px solid rgba(226,0,26,.18); }
-    .pr-emoji { font-size:1.8rem; flex-shrink:0; }
-    .pr-grade { font-family:var(--font-d); font-size:1.3rem; font-weight:800; }
-    .pr-best  .pr-grade  { color:var(--green); }
-    .pr-good  .pr-grade  { color:var(--blue); }
-    .pr-average .pr-grade { color:var(--orange); }
-    .pr-poor  .pr-grade  { color:var(--red); }
-    .pr-desc { font-size:.75rem; color:var(--text2); line-height:1.4; margin-top:2px; }
-    .pr-pct  { margin-left:auto; font-family:var(--font-d); font-size:2rem; font-weight:800; color:var(--text); flex-shrink:0; }
-
-    .perf-stats { display:flex; flex-direction:column; gap:6px; background:var(--bg); border-radius:var(--r-md); padding:11px 13px; margin-bottom:10px; }
-    .ps-row { display:flex; justify-content:space-between; font-size:.82rem; color:var(--text2); }
-    .ps-row strong { color:var(--text); }
-    .dl-val  { color:var(--green) !important; }
-    .ul-val  { color:var(--blue) !important; }
-    .lat-val { color:var(--orange) !important; }
-
-    .saved-notice { font-size:.75rem; color:var(--green); background:rgba(22,163,74,.08); border:1px solid rgba(22,163,74,.2); border-radius:var(--r-sm); padding:7px 12px; text-align:center; font-weight:600; }
-
-    /* Awaiting */
-    .perf-awaiting { display:flex; align-items:flex-start; gap:12px; padding:14px; background:#fffbeb; border-radius:var(--r-lg); border:1px solid rgba(217,119,6,.2); margin-bottom:14px; }
-    .pa-icon  { font-size:1.8rem; flex-shrink:0; }
-    .pa-title { font-family:var(--font-d); font-size:1.05rem; font-weight:700; color:var(--orange); }
-    .pa-desc  { font-size:.78rem; color:var(--text2); margin-top:2px; }
-
-    .grade-legend { display:flex; flex-direction:column; gap:8px; }
-    .gl-row  { display:flex; align-items:center; gap:8px; font-size:.8rem; color:var(--text2); }
-    .gl-dot  { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
-    .gl-dot.best { background:var(--green); }
-    .gl-dot.good { background:#fb923c; }
-    .gl-dot.avg  { background:var(--orange); }
-    .gl-dot.poor { background:var(--red); }
-
-    /* ISP card */
-    .isp-card { padding:16px 20px; display:flex; align-items:center; gap:14px; }
-    .isp-icon { width:44px; height:44px; border-radius:var(--r-md); background:var(--navy); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-    .isp-name { font-weight:700; font-size:.9rem; color:var(--text); }
-    .isp-sub  { font-size:.72rem; color:var(--text2); margin-top:2px; }
-
-    /* Offline full-page */
-    .offline-page { display:flex; align-items:center; justify-content:center; min-height:80vh; padding:40px 20px; animation:fadeUp .4s ease; }
-    .op-card { text-align:center; max-width:440px; background:var(--white); border-radius:var(--r-xl); padding:48px 40px; box-shadow:0 8px 40px rgba(0,0,0,.08); border:1.5px solid #fecaca; }
-    .op-icon { color:#dc2626; margin-bottom:18px; }
-    .op-title { font-family:var(--font-d); font-size:1.6rem; font-weight:800; color:#991b1b; margin-bottom:8px; }
-    .op-desc { font-size:.88rem; color:var(--text2); line-height:1.55; margin-bottom:22px; }
-    .op-tips { display:flex; flex-direction:column; gap:8px; text-align:left; margin-bottom:24px; background:#fef2f2; border-radius:var(--r-md); padding:14px 18px; }
-    .op-tip { font-size:.82rem; color:#991b1b; }
-    .op-retry { display:inline-flex; align-items:center; gap:8px; padding:12px 28px; background:var(--red); color:#fff; border:none; border-radius:var(--r-lg); font-size:.92rem; font-weight:700; cursor:pointer; transition:all .2s; box-shadow:0 4px 16px rgba(226,0,26,.3); }
-    .op-retry:hover { background:var(--red-dark); transform:translateY(-1px); box-shadow:0 6px 24px rgba(226,0,26,.4); }
-    @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
-
-    @media(max-width:1100px) { .st-layout { grid-template-columns:1fr; } .canvas-wrap { width:290px; height:180px; } .speed-big { font-size:2.7rem; } }
-  `]
 })
 export class SpeedTestComponent implements AfterViewInit, OnDestroy {
   @ViewChild('meterCvs') cvs!: ElementRef<HTMLCanvasElement>;
@@ -444,8 +327,55 @@ export class SpeedTestComponent implements AfterViewInit, OnDestroy {
     const p = this.dlPct();
     if (p >= 90) return 'Excellent! Delivering near-plan speed.';
     if (p >= 70) return 'Good performance from your plan.';
-    if (p >= 50) return 'Average — congestion may be present.';
-    return 'Below average. Consider contacting your ISP.';
+    if (p >= 50) return 'Average — speeds are below plan expectations.';
+    return 'Below average. Consider contacting your Act\'s Network Engineer.';
+  });
+
+  speedGrade = computed(() => {
+    const dl = this.st().download;
+    if (dl >= 300) return {
+      grade: 'Looks Outstanding',
+      title: 'Your internet connection is outstanding.',
+      desc: 'Your connection should effortlessly handle ultra-fast downloads, many simultaneous users, online gaming, and 4K/8K streaming all at the same time.'
+    };
+    if (dl >= 100) return {
+      grade: 'Looks Excellent',
+      title: 'Your internet connection is excellent.',
+      desc: 'Your connection should comfortably support multiple 4K video streams, intense gaming, fast downloads, and numerous connected devices.'
+    };
+    if (dl >= 50) return {
+      grade: 'Looks Very Good',
+      title: 'Your internet connection is very fast.',
+      desc: 'Your connection should handle 4K video streaming, online gaming, fast downloads, and support several devices simultaneously.'
+    };
+    if (dl >= 25) return {
+      grade: 'Looks Good',
+      title: 'Your internet connection is fast.',
+      desc: 'Your connection should handle HD video streaming, video calls, online gaming, and multiple devices at the same time.'
+    };
+    if (dl >= 10) return {
+      grade: 'Looks Fair',
+      title: 'Your internet connection is fair.',
+      desc: 'Your connection should handle HD videos and video calls on 1–2 devices. Smooth performance for standard streaming.'
+    };
+    if (dl >= 5) return {
+      grade: 'Looks Slow',
+      title: 'Your internet connection is slow.',
+      desc: 'Your connection should handle basic web browsing and lower-quality video streaming on one device at a time.'
+    };
+    return {
+      grade: 'Looks Very Slow',
+      title: 'Your internet connection is very slow.',
+      desc: 'Your connection is suitable for basic browsing and messaging. Video streaming may experience buffering.'
+    };
+  });
+
+  speedSummaryClass = computed(() => {
+    const grade = this.speedGrade().grade
+      .replace(/^looks\s+/i, '')
+      .toLowerCase()
+      .replace(/\s+/g, '-');
+    return 'ss-' + grade;
   });
 
   isStepDone(phase: string): boolean {
@@ -465,7 +395,6 @@ export class SpeedTestComponent implements AfterViewInit, OnDestroy {
     this.svc.reset();
     try {
       const result = await this.svc.runTest();
-      // AUTO-SAVE immediately after test completes
       this.autoSave(result);
     } catch (e: any) {
       if (e?.message === 'OFFLINE') {
@@ -476,9 +405,7 @@ export class SpeedTestComponent implements AfterViewInit, OnDestroy {
     }
   }
 
-  dismissOffline() {
-    this.offline.set(false);
-  }
+  dismissOffline() { this.offline.set(false); }
 
   retryConnection() {
     this.offline.set(false);
@@ -489,7 +416,6 @@ export class SpeedTestComponent implements AfterViewInit, OnDestroy {
     const u = this.user();
     if (!u) return;
 
-    // Determine combined test path
     let testPath: 'mlab' | 'cdn' | 'backend' | 'mixed' = 'backend';
     if (s.downloadPath === 'mlab' && s.uploadPath === 'mlab') testPath = 'mlab';
     else if (s.downloadPath === 'cdn' && s.uploadPath === 'cdn') testPath = 'cdn';
@@ -511,9 +437,7 @@ export class SpeedTestComponent implements AfterViewInit, OnDestroy {
       planUpload: u.plan.upload
     }).subscribe({
       next: () => this.autoSaved.set(true),
-      error: (err) => {
-        console.error('[SpeedTest] Failed to save results:', err.status, err.message);
-      }
+      error: (err) => console.error('[SpeedTest] Failed to save results:', err.status, err.message)
     });
   }
 
@@ -540,11 +464,9 @@ export class SpeedTestComponent implements AfterViewInit, OnDestroy {
     const frac = Math.min(1, spd / max);
     const sA = Math.PI, nA = sA + frac * Math.PI;
 
-    // Background arc
     ctx.beginPath(); ctx.arc(cx, cy, R, Math.PI, 2 * Math.PI);
     ctx.strokeStyle = '#e5e7eb'; ctx.lineWidth = 20; ctx.lineCap = 'round'; ctx.stroke();
 
-    // Colored zone arcs
     const zones = [
       { from: 0, to: .5, color: '#fecaca' },
       { from: .5, to: .7, color: '#fde68a' },
@@ -557,20 +479,17 @@ export class SpeedTestComponent implements AfterViewInit, OnDestroy {
       ctx.strokeStyle = z.color; ctx.lineWidth = 16; ctx.lineCap = 'butt'; ctx.stroke();
     });
 
-    // Zone boundary dots
     [{ at: .5, c: '#f59e0b' }, { at: .7, c: '#22c55e' }, { at: .9, c: '#16a34a' }].forEach(d => {
       const a = sA + d.at * Math.PI;
       ctx.beginPath(); ctx.arc(cx + Math.cos(a) * R, cy + Math.sin(a) * R, 5, 0, 2 * Math.PI);
       ctx.fillStyle = d.c; ctx.fill();
     });
 
-    // End dots
     ctx.beginPath(); ctx.arc(cx + Math.cos(sA) * R, cy + Math.sin(sA) * R, 6, 0, 2 * Math.PI);
     ctx.fillStyle = '#e2001a'; ctx.fill();
     ctx.beginPath(); ctx.arc(cx + Math.cos(2 * Math.PI) * R, cy + Math.sin(2 * Math.PI) * R, 6, 0, 2 * Math.PI);
     ctx.fillStyle = '#16a34a'; ctx.fill();
 
-    // Ticks + labels
     for (let i = 0; i <= 10; i++) {
       const a = Math.PI + (i / 10) * Math.PI, maj = i % 2 === 0;
       ctx.beginPath();
@@ -584,7 +503,6 @@ export class SpeedTestComponent implements AfterViewInit, OnDestroy {
       }
     }
 
-    // Needle
     ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.2)'; ctx.shadowBlur = 5;
     ctx.beginPath();
     ctx.moveTo(cx + Math.cos(nA - .04) * 11, cy + Math.sin(nA - .04) * 11);
@@ -592,7 +510,6 @@ export class SpeedTestComponent implements AfterViewInit, OnDestroy {
     ctx.lineTo(cx + Math.cos(nA + .04) * 11, cy + Math.sin(nA + .04) * 11);
     ctx.closePath(); ctx.fillStyle = '#111827'; ctx.fill(); ctx.restore();
 
-    // Hub
     ctx.beginPath(); ctx.arc(cx, cy, 11, 0, 2 * Math.PI); ctx.fillStyle = '#1f2937'; ctx.fill();
     ctx.beginPath(); ctx.arc(cx, cy, 5, 0, 2 * Math.PI); ctx.fillStyle = '#fff'; ctx.fill();
   }

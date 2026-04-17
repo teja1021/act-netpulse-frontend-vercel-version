@@ -126,7 +126,7 @@ Chart.register(...registerables);
     .stats-row { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
     .stat-card { padding:22px; }
     .sc-lbl { font-size:.64rem; font-weight:700; letter-spacing:.12em; color:var(--text2); text-transform:uppercase; margin-bottom:8px; }
-    .sc-val { font-family:var(--font-d); font-size:2.5rem; font-weight:800; color:var(--text); line-height:1; }
+    .sc-val { font-family:var(--font-d); font-size:1.75rem; font-weight:800; color:var(--text); line-height:1; }
     .sc-u   { font-size:1rem; font-weight:500; color:var(--text2); }
     .sc-trend { font-size:.75rem; margin-top:6px; font-weight:500; }
     .sc-trend.green  { color:var(--green); }

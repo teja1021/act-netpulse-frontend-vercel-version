@@ -1,1 +1,0 @@
-import{D as r,n as o}from"./chunk-KLTO4IM3.js";var c=(()=>{class t{constructor(){this.open=r(!1)}toggle(){this.open.update(e=>!e)}close(){this.open.set(!1)}static{this.\u0275fac=function(s){return new(s||t)}}static{this.\u0275prov=o({token:t,factory:t.\u0275fac,providedIn:"root"})}}return t})();export{c as a};

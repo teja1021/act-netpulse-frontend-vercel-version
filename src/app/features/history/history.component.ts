@@ -228,6 +228,31 @@ import { forkJoin, of } from 'rxjs';
     .pg-num{width:30px;height:30px;border:1.5px solid var(--border);border-radius:var(--r-sm);background:var(--white);color:var(--text2);font-size:.8rem;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;font-family:var(--font)}
     .pg-num.active{background:var(--red);border-color:var(--red);color:#fff;font-weight:700}
     .pg-num:hover:not(.active){border-color:var(--red);color:var(--red)}
+
+    @media(max-width:900px){
+      .hs-head{flex-direction:column;align-items:flex-start;gap:12px;padding:14px 16px}
+      .hs-head-right{width:100%;flex-wrap:wrap}
+    }
+
+    @media(max-width:680px){
+      .hero-banner{padding:24px 16px 28px}
+      .hero-banner h1{font-size:1.6rem}
+      .hero-banner p{font-size:.78rem}
+      .hs-content{padding:14px 10px}
+      .hs-card{overflow:visible}
+      table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch;white-space:nowrap}
+      thead{display:table;width:100%;table-layout:auto}
+      tbody{display:table;width:100%;table-layout:auto}
+      th{padding:10px 14px;font-size:.58rem}
+      td{padding:10px 14px;font-size:.8rem}
+      .sv{font-size:1rem}
+      .td-dt{font-size:.8rem}
+      .td-tm{font-size:.68rem}
+      .grade-badge{font-size:.65rem;padding:3px 8px}
+      .pagination{flex-wrap:wrap;gap:6px;padding:10px}
+      .pg-btn{padding:5px 10px;font-size:.76rem}
+      .pg-num{width:26px;height:26px;font-size:.72rem}
+    }
   `]
 })
 export class HistoryComponent implements OnInit {

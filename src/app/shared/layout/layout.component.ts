@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, computed, signal } from '@angular/core';
+import { Component, OnInit, OnDestroy, computed, signal, HostListener } from '@angular/core';
 import { RouterOutlet, RouterLink, RouterLinkActive, Router } from '@angular/router';
 import { NgComponentOutlet } from '@angular/common';
 import { AuthService } from '../../core/services/auth.service';
@@ -49,10 +49,28 @@ import type { AiInsightsComponent } from '../../features/ai-insights/ai-insights
       </a>
 
       <div class="nav-links">
-        @for (item of navItems; track item.path) {
-          <a [routerLink]="item.path" routerLinkActive="nav-active" class="nav-link">{{ item.label }}</a>
+        <!-- Speed Test always visible -->
+        <a routerLink="/speed-test" routerLinkActive="nav-active" class="nav-link nav-pinned">Speed Test</a>
+
+        <!-- Other links: visible on desktop, hidden in menu on mobile -->
+        @for (item of menuItems; track item.path) {
+          <a [routerLink]="item.path" routerLinkActive="nav-active" class="nav-link nav-menu-item">{{ item.label }}</a>
         }
+
+        <!-- Hamburger button (mobile only, inside center group) -->
+        <button class="hamburger" (click)="toggleMenu()" [class.ham-open]="menuOpen()">
+          <span></span><span></span><span></span>
+        </button>
       </div>
+
+      <!-- Mobile dropdown menu -->
+      @if (menuOpen()) {
+        <div class="mobile-menu">
+          @for (item of menuItems; track item.path) {
+            <a [routerLink]="item.path" routerLinkActive="nav-active" class="mm-link" (click)="menuOpen.set(false)">{{ item.label }}</a>
+          }
+        </div>
+      }
 
       <div class="nav-right">
         <div class="plan-pill">
@@ -163,94 +181,7 @@ import type { AiInsightsComponent } from '../../features/ai-insights/ai-insights
   }
 </div>
 }
-  `,
-  styles: [`
-    /* Offline full-page */
-    .offline-page{display:flex;align-items:center;justify-content:center;min-height:100vh;background:var(--navy);padding:40px 20px;animation:offFade .4s ease}
-    .op-card{text-align:center;max-width:440px;background:rgba(255,255,255,.07);backdrop-filter:blur(12px);border-radius:var(--r-xl);padding:48px 40px;box-shadow:0 12px 48px rgba(0,0,0,.3);border:1.5px solid rgba(255,255,255,.1)}
-    .op-icon{color:#ff6b6b;margin-bottom:18px}
-    .op-title{font-family:var(--font-d);font-size:1.6rem;font-weight:800;color:#fff;margin-bottom:8px}
-    .op-desc{font-size:.88rem;color:rgba(255,255,255,.6);line-height:1.55;margin-bottom:22px}
-    .op-tips{display:flex;flex-direction:column;gap:8px;text-align:left;margin-bottom:24px;background:rgba(255,255,255,.05);border-radius:var(--r-md);padding:14px 18px;border:1px solid rgba(255,255,255,.08)}
-    .op-tip{font-size:.82rem;color:rgba(255,255,255,.7)}
-    .op-retry{display:inline-flex;align-items:center;gap:8px;padding:12px 28px;background:var(--red);color:#fff;border:none;border-radius:var(--r-lg);font-size:.92rem;font-weight:700;cursor:pointer;transition:all .2s;box-shadow:0 4px 16px rgba(226,0,26,.3)}
-    .op-retry:hover{background:var(--red-dark);transform:translateY(-1px);box-shadow:0 6px 24px rgba(226,0,26,.4)}
-    @keyframes offFade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-
-    .shell{display:flex;flex-direction:column;min-height:100vh;background:var(--bg)}
-
-    .navbar{background:var(--navy);position:sticky;top:0;z-index:200;border-bottom:1px solid rgba(255,255,255,.06)}
-    .nav-inner{max-width:1400px;margin:0 auto;padding:0 28px;height:58px;display:flex;align-items:center;position:relative}
-
-    .logo{display:flex;align-items:center;gap:10px;text-decoration:none;margin-right:36px;flex-shrink:0;position:relative;z-index:1}
-    .logo-img{height:24px;width:auto;display:block;object-fit:contain;flex-shrink:0}
-    .logo-np{height:50px;width:auto;display:block;object-fit:contain;flex-shrink:0}
-
-    .nav-links{display:flex;align-items:center;gap:4px;position:absolute;left:50%;transform:translateX(-50%)}
-    .nav-link{padding:7px 18px;border-radius:6px;color:rgba(255,255,255,.6);font-size:.96rem;font-weight:600;text-decoration:none;transition:all .15s;white-space:nowrap}
-    .nav-link:hover{color:#fff;background:rgba(255,255,255,.07)}
-    .nav-link.nav-active{background:var(--red);color:#fff;box-shadow:0 2px 10px rgba(226,0,26,.35);font-weight:600}
-
-    .nav-right{display:flex;align-items:center;gap:12px;margin-left:auto;position:relative;z-index:1}
-
-    .plan-pill{display:flex;align-items:center;gap:7px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:5px 14px;font-size:.78rem;font-weight:500;color:rgba(255,255,255,.8)}
-    .plan-dot{width:7px;height:7px;border-radius:50%;background:#22c55e;box-shadow:0 0 6px #22c55e;flex-shrink:0}
-
-    .profile-wrap{position:relative;cursor:pointer;flex-shrink:0}
-    .profile-av{width:36px;height:36px;border-radius:50%;background:var(--red);color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--font-d);font-weight:700;font-size:1.05rem;border:2.5px solid rgba(255,255,255,.2);transition:border-color .15s;user-select:none}
-    .profile-wrap:hover .profile-av{border-color:rgba(255,255,255,.55)}
-
-    .profile-dropdown{position:absolute;top:calc(100% + 10px);right:0;width:220px;background:var(--white);border-radius:var(--r-lg);box-shadow:0 8px 32px rgba(0,0,0,.18);border:1px solid var(--border);z-index:300;overflow:hidden;animation:fup .15s ease}
-    @keyframes fup{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
-    .pd-user{display:flex;align-items:center;gap:10px;padding:14px 16px}
-    .pd-av{width:36px;height:36px;border-radius:50%;background:var(--red);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.95rem;flex-shrink:0}
-    .pd-name{font-weight:700;font-size:.88rem;color:var(--text)}
-    .pd-id{font-size:.7rem;color:var(--text2);font-family:monospace}
-    .pd-divider{height:1px;background:var(--border)}
-    .pd-row{display:flex;justify-content:space-between;padding:7px 16px;font-size:.78rem}
-    .pd-lbl{color:var(--text2)} .pd-val{font-weight:600;color:var(--text)}
-    .pd-logout{width:100%;display:flex;align-items:center;gap:8px;padding:10px 16px;background:none;border:none;color:#dc2626;font-size:.82rem;font-weight:600;cursor:pointer;font-family:var(--font);transition:background .15s}
-    .pd-logout:hover{background:#fef2f2}
-
-    .page-area{flex:1;overflow-y:auto}
-
-    .footer{background:var(--navy);padding:24px 40px 18px}
-    .ft-row{display:flex;align-items:center;justify-content:space-between;gap:24px;position:relative}
-    .ft-left{flex-shrink:0}
-    .ft-center{position:absolute;left:50%;transform:translateX(-50%)}
-    .ft-right{flex-shrink:0;text-align:right;margin-left:auto}
-    .ft-brand{display:flex;align-items:baseline;gap:6px}
-    .ft-act-link{font-family:var(--font-d);font-size:1.6rem;font-weight:900;color:var(--red);text-decoration:none;letter-spacing:.02em;transition:color .15s}
-    .ft-act-link:hover{color:#fff}
-    .ft-netpulse{font-family:var(--font-d);font-size:1.6rem;font-weight:900;color:rgba(255,255,255,.5);letter-spacing:.02em}
-    .ft-social{display:flex;gap:24px;justify-content:center;align-items:center}
-    .ft-social a{display:flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.06);color:rgba(255,255,255,.4);transition:all .2s;text-decoration:none}
-    .ft-social a:hover{background:var(--red);color:#fff;transform:scale(1.15);box-shadow:0 4px 16px rgba(226,0,26,.35)}
-    .ft-divider{height:1px;background:rgba(255,255,255,.1);margin:16px 0 12px}
-    .ft-bottom{display:flex;align-items:center;justify-content:center;gap:8px;font-size:.72rem;color:rgba(255,255,255,.2)}
-    .ft-dot{color:rgba(255,255,255,.12)}
-    .ft-official{color:rgba(255,255,255,.5);font-weight:700;text-decoration:none}
-    .ft-official:hover{text-decoration:underline;color:#fff}
-    .ft-official-text{color:rgba(255,255,255,.2)}
-    .ft-tagline{font-size:.72rem;color:rgba(255,255,255,.25);max-width:260px;line-height:1.4}
-
-    .ai-fab{position:fixed;bottom:28px;right:28px;z-index:400;display:flex;align-items:center;gap:7px;padding:12px 20px;border-radius:28px;background:var(--red);color:#fff;border:none;cursor:pointer;box-shadow:0 4px 20px rgba(226,0,26,.45);font-family:var(--font);font-size:.875rem;font-weight:700;transition:all .2s;letter-spacing:.03em}
-    .ai-fab:hover{background:var(--red-dark);transform:translateY(-2px);box-shadow:0 6px 28px rgba(226,0,26,.5)}
-    .ai-fab.fab-open{border-radius:50%;width:46px;height:46px;padding:0;justify-content:center}
-
-    .ai-overlay{position:fixed;inset:0;background:rgba(0,0,0,.15);z-index:350}
-    .ai-panel{position:fixed;bottom:86px;right:28px;z-index:360;width:460px;max-height:72vh;background:var(--white);border-radius:var(--r-xl);box-shadow:0 16px 60px rgba(0,0,0,.2);border:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;animation:ps .2s ease}
-    @keyframes ps{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
-
-    @media(max-width:900px){
-      .plan-pill{display:none}
-      .nav-inner{padding:0 14px}
-      .nav-links{position:static;left:auto;transform:none;margin:0 auto}
-      .logo{margin-right:16px}
-      .ai-panel{right:10px;left:10px;width:auto}
-      .ai-fab{bottom:20px;right:20px}
-    }
-  `]
+  `
 })
 export class LayoutComponent implements OnInit, OnDestroy {
   constructor(
@@ -262,6 +193,7 @@ export class LayoutComponent implements OnInit, OnDestroy {
   user = this.auth.currentUser;
   initial = computed(() => (this.user()?.name ?? 'U').charAt(0).toUpperCase());
   profileOpen = signal(false);
+  menuOpen = signal(false);
   isOffline = signal(!navigator.onLine);
   aiComp: any = null;
 
@@ -270,6 +202,12 @@ export class LayoutComponent implements OnInit, OnDestroy {
 
   navItems = [
     { path: '/speed-test', label: 'Speed Test' },
+    { path: '/dashboard', label: 'Dashboard' },
+    { path: '/history', label: 'History' },
+    { path: '/settings', label: 'Settings' }
+  ];
+
+  menuItems = [
     { path: '/dashboard', label: 'Dashboard' },
     { path: '/history', label: 'History' },
     { path: '/settings', label: 'Settings' }
@@ -294,5 +232,14 @@ export class LayoutComponent implements OnInit, OnDestroy {
 
   toggleProfile() { this.profileOpen.update(v => !v); }
   closeProfile() { this.profileOpen.set(false); }
+  toggleMenu() { this.menuOpen.update(v => !v); }
   logout() { this.auth.logout(); this.profileOpen.set(false); }
+
+  @HostListener('document:click', ['$event'])
+  onDocClick(e: Event) {
+    const t = e.target as HTMLElement;
+    if (this.menuOpen() && !t.closest('.hamburger') && !t.closest('.mobile-menu')) {
+      this.menuOpen.set(false);
+    }
+  }
 }

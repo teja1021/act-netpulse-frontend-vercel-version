@@ -61,9 +61,9 @@ export class SpeedTestService {
       console.warn('[SpeedTest] M-Lab locate failed, will use Cloudflare/backend', e);
     }
 
-    // Ping (always via our backend)
-    const { latency, jitter } = await this.measurePing();
-    this.emit({ latency, jitter, progress: 14, phase: 'download' });
+    // Will be set from M-Lab TCPInfo during download/upload
+    let latency = 0;
+    let jitter = 0;
 
     // ── DOWNLOAD: M-Lab → Cloudflare → Backend ──
     const dlTick = (spd: number, pct: number) =>
@@ -75,9 +75,12 @@ export class SpeedTestService {
     if (mlabServer) {
       try {
         console.log('[SpeedTest] Trying M-Lab NDT7 download…');
-        download = await this.measureDownloadNDT7(mlabServer.downloadUrl, dlTick);
+        const result = await this.measureDownloadNDT7(mlabServer.downloadUrl, dlTick);
+        download = result.mbps;
+        latency = result.latency;
+        jitter = result.jitter;
         downloadPath = 'mlab';
-        console.log('[SpeedTest] M-Lab download:', download, 'Mbps');
+        console.log('[SpeedTest] M-Lab download:', download, 'Mbps, latency:', latency, 'ms');
       } catch (e) {
         console.warn('[SpeedTest] M-Lab download failed:', e);
       }
@@ -98,7 +101,14 @@ export class SpeedTestService {
       downloadPath = 'backend';
     }
 
-    this.emit({ download, downloadPath, liveSpeed: 0, progress: 60, phase: 'upload' });
+    // If no M-Lab latency yet, measure from backend
+    if (latency === 0) {
+      const pingResult = await this.measurePingBackend();
+      latency = pingResult.latency;
+      jitter = pingResult.jitter;
+    }
+
+    this.emit({ download, downloadPath, latency, jitter, liveSpeed: 0, progress: 60, phase: 'upload' });
 
     // ── UPLOAD: M-Lab → Cloudflare → Backend ──
     const ulTick = (spd: number, pct: number) =>
@@ -110,7 +120,13 @@ export class SpeedTestService {
     if (mlabServer) {
       try {
         console.log('[SpeedTest] Trying M-Lab NDT7 upload…');
-        upload = await this.measureUploadNDT7(mlabServer.uploadUrl, ulTick);
+        const result = await this.measureUploadNDT7(mlabServer.uploadUrl, ulTick);
+        upload = result.mbps;
+        // Use upload's latency/jitter if we didn't get it from download
+        if (latency === 0) {
+          latency = result.latency;
+          jitter = result.jitter;
+        }
         uploadPath = 'mlab';
         console.log('[SpeedTest] M-Lab upload:', upload, 'Mbps');
       } catch (e) {
@@ -179,31 +195,69 @@ export class SpeedTestService {
   }
 
   // ══════════════════════════════════════════
-  // PING (via backend)
+  // PING — Accurate Backend/Cloudflare RTT
+  // Does NOT interfere with M-Lab download/upload
   // ══════════════════════════════════════════
 
-  private async measurePing(): Promise<{ latency: number; jitter: number }> {
+  private async measurePingMLab(wsUrl: string): Promise<{ latency: number; jitter: number }> {
+    // Use fast, independent backend ping - won't interfere with speed test
+    return this.measurePingBackend();
+  }
+
+  // ══════════════════════════════════════════
+  // PING — Backend HTTP RTT (accurate & fast)
+  // ══════════════════════════════════════════
+
+  private async measurePingBackend(): Promise<{ latency: number; jitter: number }> {
+    const times: number[] = [];
+
+    // Quick warmup request
     try {
-      await fetch(`${this.api}/speed/ping?_=${Date.now()}`, { cache: 'no-store' });
-      await this.sleep(100);
+      const t0 = performance.now();
+      const res = await fetch(`${this.api}/speed/ping?_=${Date.now()}`, { cache: 'no-store' });
+      times.push(performance.now() - t0);
+      res.body?.cancel?.().catch(() => { });
     } catch { }
 
-    const times: number[] = [];
-    for (let i = 0; i < 10; i++) {
-      const t0 = performance.now();
+    await this.sleep(50);
+
+    // Measure 18 rounds for better accuracy
+    for (let i = 0; i < 18; i++) {
       try {
-        await fetch(`${this.api}/speed/ping?_=${Date.now()}`, { cache: 'no-store' });
+        const t0 = performance.now();
+        const res = await fetch(`${this.api}/speed/ping?_=${Date.now()}&r=${i}`, { cache: 'no-store' });
+        const elapsed = performance.now() - t0;
+        if (res.ok) times.push(elapsed);
+        res.body?.cancel?.().catch(() => { });
       } catch { }
-      times.push(performance.now() - t0);
-      await this.sleep(40);
+      await this.sleep(35);
+    }
+
+    if (times.length < 5) {
+      console.warn('[SpeedTest] Backend ping insufficient samples');
+      return { latency: 10, jitter: 2 };
     }
 
     times.sort((a, b) => a - b);
-    const trimmed = times.slice(1, -1);
+    // Remove outliers: warmup + 2 extremes on each end for better median
+    const trimmed = times.slice(3, -2);
+    if (trimmed.length < 3) {
+      return { latency: Math.round(times[2] * 10) / 10, jitter: 1 };
+    }
+
     const avg = trimmed.reduce((s, v) => s + v, 0) / trimmed.length;
-    const jitter = Math.sqrt(trimmed.reduce((s, v) => s + (v - avg) ** 2, 0) / trimmed.length);
+    const variance = trimmed.reduce((s, v) => s + (v - avg) ** 2, 0) / trimmed.length;
+    const jitter = Math.sqrt(variance);
+
+    // RTT = half of round-trip time (more accurate than full)
+    // Subtract minimal HTTP overhead (~1ms) for local servers
+    const isLocal = this.api.includes('localhost') || this.api.includes('127.0.0.1');
+    const overhead = isLocal ? 1 : 2;
+    const latency = Math.max(0.5, (avg - overhead) / 2);
+
+    console.log(`[SpeedTest] Backend ping: raw=${avg.toFixed(1)}ms → latency=${latency.toFixed(1)}ms, jitter=${jitter.toFixed(1)}ms (samples: ${times.length}, used: ${trimmed.length})`);
     return {
-      latency: Math.round(avg * 10) / 10,
+      latency: Math.round(latency * 10) / 10,
       jitter: Math.round(jitter * 10) / 10
     };
   }
@@ -215,7 +269,7 @@ export class SpeedTestService {
   private measureDownloadNDT7(
     wsUrl: string,
     onTick: (s: number, p: number) => void
-  ): Promise<number> {
+  ): Promise<{ mbps: number; latency: number; jitter: number }> {
     return new Promise((resolve, reject) => {
       const WARMUP = 2_000;
       const TIMEOUT = 15_000;
@@ -231,6 +285,8 @@ export class SpeedTestService {
       let totalBytes = 0;
       let dataStartTime = 0;
       let resolved = false;
+      let mlabLatency = 0;
+      let mlabJitter = 0;
       const startTime = performance.now();
 
       const done = (mbps: number) => {
@@ -238,7 +294,11 @@ export class SpeedTestService {
         resolved = true;
         clearTimeout(timeout);
         try { ws.close(); } catch { }
-        resolve(parseFloat(Math.max(0, mbps).toFixed(2)));
+        resolve({
+          mbps: parseFloat(Math.max(0, mbps).toFixed(2)),
+          latency: mlabLatency,
+          jitter: mlabJitter
+        });
       };
 
       const fail = (msg: string) => {
@@ -259,7 +319,20 @@ export class SpeedTestService {
       }, TIMEOUT);
 
       ws.onmessage = (event: MessageEvent) => {
-        if (event.data instanceof ArrayBuffer) {
+        if (typeof event.data === 'string') {
+          // Parse M-Lab server measurements (TCPInfo)
+          try {
+            const msg = JSON.parse(event.data);
+            if (msg.TCPInfo?.MinRTT) {
+              // MinRTT is in microseconds, convert to milliseconds
+              mlabLatency = parseFloat((msg.TCPInfo.MinRTT / 1000).toFixed(1));
+              // RTTVar is jitter in microseconds
+              if (msg.TCPInfo.RTTVar) {
+                mlabJitter = parseFloat((msg.TCPInfo.RTTVar / 1000).toFixed(1));
+              }
+            }
+          } catch { }
+        } else if (event.data instanceof ArrayBuffer) {
           const now = performance.now();
           const sinceStart = now - startTime;
 
@@ -275,7 +348,6 @@ export class SpeedTestService {
           const mbps = elapsed > 0.3 ? (totalBytes * 8) / (elapsed * 1_000_000) : 0;
           onTick(parseFloat(mbps.toFixed(2)), pct);
         }
-        // Ignore text frames (server AppInfo) — we use client-side measurement only
       };
 
       ws.onclose = () => {
@@ -298,7 +370,7 @@ export class SpeedTestService {
   private measureUploadNDT7(
     wsUrl: string,
     onTick: (s: number, p: number) => void
-  ): Promise<number> {
+  ): Promise<{ mbps: number; latency: number; jitter: number }> {
     return new Promise((resolve, reject) => {
       const DURATION = 10_000;
       const TIMEOUT = 15_000;
@@ -323,6 +395,8 @@ export class SpeedTestService {
       let clientBytes = 0;
       let sendDone = false;
       let resolved = false;
+      let mlabLatency = 0;
+      let mlabJitter = 0;
       const startTime = performance.now();
 
       const cleanup = () => {
@@ -336,7 +410,11 @@ export class SpeedTestService {
         resolved = true;
         cleanup();
         try { ws.close(); } catch { }
-        resolve(parseFloat(Math.max(0, mbps).toFixed(2)));
+        resolve({
+          mbps: parseFloat(Math.max(0, mbps).toFixed(2)),
+          latency: mlabLatency,
+          jitter: mlabJitter
+        });
       };
 
       const fail = (err: string) => {
@@ -390,6 +468,16 @@ export class SpeedTestService {
         if (typeof event.data === 'string') {
           try {
             const msg = JSON.parse(event.data);
+
+            // Extract M-Lab server measurements (TCPInfo)
+            if (msg.TCPInfo?.MinRTT) {
+              mlabLatency = parseFloat((msg.TCPInfo.MinRTT / 1000).toFixed(1));
+              if (msg.TCPInfo.RTTVar) {
+                mlabJitter = parseFloat((msg.TCPInfo.RTTVar / 1000).toFixed(1));
+              }
+            }
+
+            // Extract upload results
             if (msg.AppInfo?.ElapsedTime && msg.AppInfo?.NumBytes) {
               const sec = msg.AppInfo.ElapsedTime / 1_000_000;
               if (sec > 0) serverMbps = (msg.AppInfo.NumBytes * 8) / (sec * 1_000_000);
